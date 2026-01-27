@@ -114,19 +114,20 @@ function App() {
     <div className="container">
       <div className="content">
         <svg className="logo" viewBox="0 0 120 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 4L22 28H2L12 4Z" fill="white"/>
-          <text x="32" y="24" fill="white" fontSize="22" fontWeight="600" fontFamily="-apple-system, BlinkMacSystemFont, sans-serif">peak</text>
+          <path d="M12 4L22 28H2L12 4Z" fill="#1a1a1a"/>
+          <text x="30" y="23" fill="#1a1a1a" fontSize="21" fontWeight="700" fontFamily="Inter, -apple-system, sans-serif">peak</text>
         </svg>
 
         {!showManual ? (
-          <p className="loading-text">Opening...</p>
+          <p className="loading-text">Opening Peak...</p>
         ) : (
           <div className="manual">
-            <h1>Open in {browserName}</h1>
+            <p className="tagline">One more step</p>
+            <h1>Open in <span className="accent">{browserName}</span></h1>
             <p className="subtitle">
               {env?.appName !== 'this app' 
-                ? `${env?.appName}'s browser can't open Peak directly.`
-                : `This browser can't open Peak directly.`
+                ? <>{env?.appName}'s browser doesn't support all features. Open in <strong>{browserName}</strong> for the best experience.</>
+                : <>This browser doesn't support all features. Open in <strong>{browserName}</strong> for the best experience.</>
               }
             </p>
 
@@ -135,18 +136,18 @@ function App() {
                 <>
                   <div className="step">
                     <span className="step-num">1</span>
-                    <span>Tap <strong>ᐧᐧᐧ</strong> or <strong>Share</strong> button</span>
+                    <span>Tap the <strong>•••</strong> or <strong>Share</strong> button</span>
                   </div>
                   <div className="step">
                     <span className="step-num">2</span>
-                    <span>Select <strong>"Open in Safari"</strong> or <strong>"Open in Browser"</strong></span>
+                    <span>Select <strong>"Open in Safari"</strong></span>
                   </div>
                 </>
               ) : (
                 <>
                   <div className="step">
                     <span className="step-num">1</span>
-                    <span>Tap <strong>⋮</strong> menu in top right</span>
+                    <span>Tap <strong>⋮</strong> in the top right corner</span>
                   </div>
                   <div className="step">
                     <span className="step-num">2</span>
@@ -157,7 +158,7 @@ function App() {
             </div>
 
             <div className="divider">
-              <span>or copy the link</span>
+              <span>or copy link</span>
             </div>
 
             <div className="link-row">
@@ -168,7 +169,7 @@ function App() {
             </div>
 
             <p className="hint">
-              Open {browserName} and paste the link
+              Paste in {browserName} to continue
             </p>
           </div>
         )}
