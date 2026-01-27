@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import './App.css'
 
 const TARGET_URL = 'https://peak.app/'
+const TARGET_HOST = 'peak.app/'
 
 // Detect device and browser type
 function detectEnvironment() {
@@ -22,27 +23,23 @@ function detectEnvironment() {
   const isWeChat = /MicroMessenger/i.test(ua)
   const isMessenger = /FBAV.*Messenger|MessengerForiOS|MessengerLiteForiOS|Messenger/i.test(ua)
   
-  // Generic in-app browser detection (catches WebView-based browsers)
+  // Generic in-app browser detection
   const isWebView = /wv|WebView/i.test(ua)
-  // iOS-specific: check for missing Safari identifier in mobile Safari-like UA
   const isIOSWebView = isIOS && !/(Safari)/i.test(ua)
-  // Additional iOS in-app detection
   const isIOSInApp = isIOS && /AppleWebKit.*Mobile/i.test(ua) && !/Safari/i.test(ua)
   
   const isInAppBrowser = isInstagram || isFacebook || isTwitter || isLinkedIn || 
                          isTikTok || isSnapchat || isPinterest || isLine || 
                          isWeChat || isMessenger || isWebView || isIOSWebView || isIOSInApp
 
-  // Debug info
   console.log('User Agent:', ua)
-  console.log('Detection:', { isIOS, isAndroid, isInstagram, isFacebook, isInAppBrowser, isIOSWebView })
+  console.log('Detection:', { isIOS, isAndroid, isInstagram, isFacebook, isInAppBrowser })
 
   return {
     isIOS,
     isAndroid,
     isInAppBrowser,
     isMobile: isIOS || isAndroid,
-    // For display purposes
     appName: isInstagram ? 'Instagram' : 
              isFacebook ? 'Facebook' : 
              isTwitter ? 'Twitter' : 
@@ -54,39 +51,101 @@ function detectEnvironment() {
   }
 }
 
-// Attempt redirect to native browser (Android only - iOS can't be forced)
+// iOS Safari-specific deep link attempts
+function attemptIOSSafariRedirect(onFail) {
+  const methods = [
+    // Method 1: x-safari-https scheme (deprecated but may work on some iOS versions)
+    () => {
+      console.log('Trying x-safari-https://')
+      window.location.href = `x-safari-https://${TARGET_HOST}`
+    },
+    // Method 2: x-safari scheme with full URL
+    () => {
+      console.log('Trying x-safari://')
+      window.location.href = `x-safari-${TARGET_URL}`
+    },
+    // Method 3: Try Shortcuts app to open URL in Safari
+    // This creates a shortcut that opens the URL - may prompt user
+    () => {
+      console.log('Trying shortcuts://')
+      window.location.href = `shortcuts://x-callback-url/run-shortcut?name=Open%20in%20Safari&input=text&text=${encodeURIComponent(TARGET_URL)}`
+    },
+    // Method 4: Try opening with _blank target (sometimes breaks out of WebView)
+    () => {
+      console.log('Trying _blank target')
+      const link = document.createElement('a')
+      link.href = TARGET_URL
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    },
+    // Method 5: Try window.open with _system (works in some WebViews like Cordova)
+    () => {
+      console.log('Trying window.open _system')
+      window.open(TARGET_URL, '_system')
+    }
+  ]
+
+  let methodIndex = 0
+  
+  const tryNextMethod = () => {
+    if (methodIndex < methods.length) {
+      methods[methodIndex]()
+      methodIndex++
+      setTimeout(tryNextMethod, 250)
+    } else {
+      console.log('All Safari redirect methods exhausted')
+      onFail()
+    }
+  }
+
+  tryNextMethod()
+}
+
+// Android Chrome deep link
 function attemptAndroidRedirect() {
-  // Intent URL for Android Chrome
-  window.location.href = `intent://${TARGET_URL.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`
+  window.location.href = `intent://${TARGET_HOST}#Intent;scheme=https;package=com.android.chrome;end`
 }
 
 function App() {
   const [env, setEnv] = useState(null)
   const [showManual, setShowManual] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [trying, setTrying] = useState(false)
 
   useEffect(() => {
     const detected = detectEnvironment()
     setEnv(detected)
 
     if (detected.isInAppBrowser && detected.isMobile) {
+      setTrying(true)
+      
       if (detected.isIOS) {
-        // iOS: Can't programmatically open Safari from in-app browser
-        // Show instructions immediately
-        setShowManual(true)
+        attemptIOSSafariRedirect(() => {
+          setTrying(false)
+          setShowManual(true)
+        })
+        
+        // Fallback timeout
+        const timer = setTimeout(() => {
+          setTrying(false)
+          setShowManual(true)
+        }, 2000)
+        
+        return () => clearTimeout(timer)
       } else if (detected.isAndroid) {
-        // Android: Try Chrome intent
         attemptAndroidRedirect()
         
-        // Show manual instructions after delay if still on page
         const timer = setTimeout(() => {
+          setTrying(false)
           setShowManual(true)
         }, 1500)
 
         return () => clearTimeout(timer)
       }
     } else {
-      // Already in regular browser - redirect immediately
       window.location.href = TARGET_URL
     }
   }, [])
@@ -118,9 +177,12 @@ function App() {
           <text x="30" y="23" fill="#1a1a1a" fontSize="21" fontWeight="700" fontFamily="Inter, -apple-system, sans-serif">peak</text>
         </svg>
 
-        {!showManual ? (
-          <p className="loading-text">Opening Peak...</p>
-        ) : (
+        {trying && !showManual ? (
+          <div className="loading-state">
+            <div className="spinner"></div>
+            <p className="loading-text">Opening Peak...</p>
+          </div>
+        ) : showManual ? (
           <div className="manual">
             <p className="tagline">One more step</p>
             <h1>Open in <span className="accent">{browserName}</span></h1>
@@ -172,6 +234,8 @@ function App() {
               Paste in {browserName} to continue
             </p>
           </div>
+        ) : (
+          <p className="loading-text">Redirecting...</p>
         )}
       </div>
     </div>
