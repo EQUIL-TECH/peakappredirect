@@ -1,8 +1,29 @@
 import { useEffect, useState } from 'react'
 import './App.css'
 
-const TARGET_URL = 'https://peak.app/'
-const TARGET_HOST = 'peak.app/'
+const BASE_URL = 'https://peak.app/'
+const BASE_HOST = 'peak.app/'
+
+// Get target URL with code param if present
+function getTargetUrl() {
+  const params = new URLSearchParams(window.location.search)
+  const code = params.get('code')
+  
+  if (code) {
+    return `${BASE_URL}?code=${encodeURIComponent(code)}`
+  }
+  return BASE_URL
+}
+
+function getTargetHost() {
+  const params = new URLSearchParams(window.location.search)
+  const code = params.get('code')
+  
+  if (code) {
+    return `${BASE_HOST}?code=${encodeURIComponent(code)}`
+  }
+  return BASE_HOST
+}
 
 // Detect device and browser type
 function detectEnvironment() {
@@ -52,29 +73,29 @@ function detectEnvironment() {
 }
 
 // iOS Safari-specific deep link attempts
-function attemptIOSSafariRedirect(onFail) {
+function attemptIOSSafariRedirect(targetUrl, targetHost, onFail) {
   const methods = [
     // Method 1: x-safari-https scheme (deprecated but may work on some iOS versions)
     () => {
       console.log('Trying x-safari-https://')
-      window.location.href = `x-safari-https://${TARGET_HOST}`
+      window.location.href = `x-safari-https://${targetHost}`
     },
     // Method 2: x-safari scheme with full URL
     () => {
       console.log('Trying x-safari://')
-      window.location.href = `x-safari-${TARGET_URL}`
+      window.location.href = `x-safari-${targetUrl}`
     },
     // Method 3: Try Shortcuts app to open URL in Safari
     // This creates a shortcut that opens the URL - may prompt user
     () => {
       console.log('Trying shortcuts://')
-      window.location.href = `shortcuts://x-callback-url/run-shortcut?name=Open%20in%20Safari&input=text&text=${encodeURIComponent(TARGET_URL)}`
+      window.location.href = `shortcuts://x-callback-url/run-shortcut?name=Open%20in%20Safari&input=text&text=${encodeURIComponent(targetUrl)}`
     },
     // Method 4: Try opening with _blank target (sometimes breaks out of WebView)
     () => {
       console.log('Trying _blank target')
       const link = document.createElement('a')
-      link.href = TARGET_URL
+      link.href = targetUrl
       link.target = '_blank'
       link.rel = 'noopener noreferrer'
       document.body.appendChild(link)
@@ -84,7 +105,7 @@ function attemptIOSSafariRedirect(onFail) {
     // Method 5: Try window.open with _system (works in some WebViews like Cordova)
     () => {
       console.log('Trying window.open _system')
-      window.open(TARGET_URL, '_system')
+      window.open(targetUrl, '_system')
     }
   ]
 
@@ -105,8 +126,8 @@ function attemptIOSSafariRedirect(onFail) {
 }
 
 // Android Chrome deep link
-function attemptAndroidRedirect() {
-  window.location.href = `intent://${TARGET_HOST}#Intent;scheme=https;package=com.android.chrome;end`
+function attemptAndroidRedirect(targetHost) {
+  window.location.href = `intent://${targetHost}#Intent;scheme=https;package=com.android.chrome;end`
 }
 
 function App() {
@@ -114,16 +135,21 @@ function App() {
   const [showManual, setShowManual] = useState(false)
   const [copied, setCopied] = useState(false)
   const [trying, setTrying] = useState(false)
+  const [targetUrl, setTargetUrl] = useState(BASE_URL)
 
   useEffect(() => {
     const detected = detectEnvironment()
     setEnv(detected)
+    
+    const url = getTargetUrl()
+    const host = getTargetHost()
+    setTargetUrl(url)
 
     if (detected.isInAppBrowser && detected.isMobile) {
       setTrying(true)
       
       if (detected.isIOS) {
-        attemptIOSSafariRedirect(() => {
+        attemptIOSSafariRedirect(url, host, () => {
           setTrying(false)
           setShowManual(true)
         })
@@ -136,7 +162,7 @@ function App() {
         
         return () => clearTimeout(timer)
       } else if (detected.isAndroid) {
-        attemptAndroidRedirect()
+        attemptAndroidRedirect(host)
         
         const timer = setTimeout(() => {
           setTrying(false)
@@ -146,18 +172,18 @@ function App() {
         return () => clearTimeout(timer)
       }
     } else {
-      window.location.href = TARGET_URL
+      window.location.href = url
     }
   }, [])
 
   const copyLink = async () => {
     try {
-      await navigator.clipboard.writeText(TARGET_URL)
+      await navigator.clipboard.writeText(targetUrl)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
       const textArea = document.createElement('textarea')
-      textArea.value = TARGET_URL
+      textArea.value = targetUrl
       document.body.appendChild(textArea)
       textArea.select()
       document.execCommand('copy')
@@ -224,7 +250,7 @@ function App() {
             </div>
 
             <div className="link-row">
-              <code>{TARGET_URL}</code>
+              <code>{targetUrl}</code>
               <button onClick={copyLink} className="copy-btn">
                 {copied ? 'Copied!' : 'Copy'}
               </button>
