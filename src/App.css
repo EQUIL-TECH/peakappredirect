@@ -125,7 +125,7 @@ body {
 .link-row {
   display: flex;
   gap: 8px;
-  margin-bottom: 24px;
+  margin-bottom: 8px;
 }
 
 .link-row code {
@@ -160,17 +160,10 @@ body {
   background: #333;
 }
 
-.continue-btn {
-  display: inline-block;
-  color: #666;
-  font-size: 14px;
-  text-decoration: none;
-  padding: 12px 24px;
-  transition: color 0.15s;
-}
-
-.continue-btn:active {
-  color: #888;
+.hint {
+  color: #555;
+  font-size: 13px;
+  margin-top: 8px;
 }
 
 @media (max-width: 440px) {
