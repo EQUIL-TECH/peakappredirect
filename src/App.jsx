@@ -32,7 +32,23 @@ function detectEnvironment() {
   const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream
   const isAndroid = /android/i.test(ua)
   
-  // Detect in-app browsers - expanded patterns for better detection
+  // Detect specific browsers on iOS
+  const isIOSChrome = isIOS && /CriOS/i.test(ua)
+  const isIOSFirefox = isIOS && /FxiOS/i.test(ua)
+  const isIOSEdge = isIOS && /EdgiOS/i.test(ua)
+  const isIOSOpera = isIOS && /OPT/i.test(ua)
+  const isIOSBrave = isIOS && /Brave/i.test(ua)
+  const isIOSSafari = isIOS && /Safari/i.test(ua) && !isIOSChrome && !isIOSFirefox && !isIOSEdge && !isIOSOpera && !isIOSBrave
+  
+  // Detect specific browsers on Android
+  const isAndroidChrome = isAndroid && /Chrome/i.test(ua) && !/Firefox|SamsungBrowser|OPR|Edge|Brave/i.test(ua)
+  const isAndroidFirefox = isAndroid && /Firefox/i.test(ua)
+  const isAndroidSamsung = isAndroid && /SamsungBrowser/i.test(ua)
+  const isAndroidEdge = isAndroid && /Edge|EdgA/i.test(ua)
+  const isAndroidOpera = isAndroid && /OPR/i.test(ua)
+  const isAndroidBrave = isAndroid && /Brave/i.test(ua)
+  
+  // Detect in-app browsers
   const isInstagram = /Instagram|IGWC/i.test(ua)
   const isFacebook = /FBAN|FBAV|FB_IAB|FBIOS|FBSS/i.test(ua)
   const isTwitter = /Twitter/i.test(ua)
@@ -53,22 +69,41 @@ function detectEnvironment() {
                          isTikTok || isSnapchat || isPinterest || isLine || 
                          isWeChat || isMessenger || isWebView || isIOSWebView || isIOSInApp
 
+  // Is user in the "wrong" browser? (not Safari on iOS, not Chrome on Android)
+  const isWrongIOSBrowser = isIOS && !isIOSSafari && !isInAppBrowser
+  const isWrongAndroidBrowser = isAndroid && !isAndroidChrome && !isInAppBrowser
+
+  // Get the name of the current browser
+  let currentBrowser = 'browser'
+  if (isIOSChrome || isAndroidChrome) currentBrowser = 'Chrome'
+  else if (isIOSFirefox || isAndroidFirefox) currentBrowser = 'Firefox'
+  else if (isIOSEdge || isAndroidEdge) currentBrowser = 'Edge'
+  else if (isIOSOpera || isAndroidOpera) currentBrowser = 'Opera'
+  else if (isIOSBrave || isAndroidBrave) currentBrowser = 'Brave'
+  else if (isAndroidSamsung) currentBrowser = 'Samsung Browser'
+  else if (isInstagram) currentBrowser = 'Instagram'
+  else if (isFacebook) currentBrowser = 'Facebook'
+  else if (isTwitter) currentBrowser = 'Twitter'
+  else if (isTikTok) currentBrowser = 'TikTok'
+  else if (isSnapchat) currentBrowser = 'Snapchat'
+  else if (isMessenger) currentBrowser = 'Messenger'
+
   console.log('User Agent:', ua)
-  console.log('Detection:', { isIOS, isAndroid, isInstagram, isFacebook, isInAppBrowser })
+  console.log('Detection:', { 
+    isIOS, isAndroid, isIOSSafari, isAndroidChrome,
+    isWrongIOSBrowser, isWrongAndroidBrowser, isInAppBrowser,
+    currentBrowser
+  })
 
   return {
     isIOS,
     isAndroid,
     isInAppBrowser,
+    isWrongBrowser: isWrongIOSBrowser || isWrongAndroidBrowser,
+    isCorrectBrowser: (isIOS && isIOSSafari) || (isAndroid && isAndroidChrome),
     isMobile: isIOS || isAndroid,
-    appName: isInstagram ? 'Instagram' : 
-             isFacebook ? 'Facebook' : 
-             isTwitter ? 'Twitter' : 
-             isLinkedIn ? 'LinkedIn' :
-             isTikTok ? 'TikTok' :
-             isSnapchat ? 'Snapchat' :
-             isMessenger ? 'Messenger' :
-             'this app'
+    currentBrowser,
+    targetBrowser: isIOS ? 'Safari' : 'Chrome'
   }
 }
 
@@ -86,7 +121,6 @@ function attemptIOSSafariRedirect(targetUrl, targetHost, onFail) {
       window.location.href = `x-safari-${targetUrl}`
     },
     // Method 3: Try Shortcuts app to open URL in Safari
-    // This creates a shortcut that opens the URL - may prompt user
     () => {
       console.log('Trying shortcuts://')
       window.location.href = `shortcuts://x-callback-url/run-shortcut?name=Open%20in%20Safari&input=text&text=${encodeURIComponent(targetUrl)}`
@@ -126,7 +160,8 @@ function attemptIOSSafariRedirect(targetUrl, targetHost, onFail) {
 }
 
 // Android Chrome deep link
-function attemptAndroidRedirect(targetHost) {
+function attemptAndroidChromeRedirect(targetHost) {
+  console.log('Trying Android Chrome intent')
   window.location.href = `intent://${targetHost}#Intent;scheme=https;package=com.android.chrome;end`
 }
 
@@ -145,7 +180,10 @@ function App() {
     const host = getTargetHost()
     setTargetUrl(url)
 
-    if (detected.isInAppBrowser && detected.isMobile) {
+    // Case 1: In-app browser (Instagram, Facebook, etc.)
+    // Case 2: Wrong browser (Chrome on iOS, Firefox on Android, etc.)
+    // Both cases need redirect to correct browser
+    if (detected.isMobile && (detected.isInAppBrowser || detected.isWrongBrowser)) {
       setTrying(true)
       
       if (detected.isIOS) {
@@ -154,7 +192,6 @@ function App() {
           setShowManual(true)
         })
         
-        // Fallback timeout
         const timer = setTimeout(() => {
           setTrying(false)
           setShowManual(true)
@@ -162,7 +199,7 @@ function App() {
         
         return () => clearTimeout(timer)
       } else if (detected.isAndroid) {
-        attemptAndroidRedirect(host)
+        attemptAndroidChromeRedirect(host)
         
         const timer = setTimeout(() => {
           setTrying(false)
@@ -172,6 +209,7 @@ function App() {
         return () => clearTimeout(timer)
       }
     } else {
+      // Correct browser or desktop - redirect immediately
       window.location.href = url
     }
   }, [])
@@ -193,7 +231,7 @@ function App() {
     }
   }
 
-  const browserName = env?.isIOS ? 'Safari' : 'Chrome'
+  const browserName = env?.targetBrowser || 'Safari'
 
   return (
     <div className="container">
@@ -213,40 +251,66 @@ function App() {
             <p className="tagline">One more step</p>
             <h1>Open in <span className="accent">{browserName}</span></h1>
             <p className="subtitle">
-              {env?.appName !== 'this app' 
-                ? <>{env?.appName}'s browser doesn't support all features. Open in <strong>{browserName}</strong> for the best experience.</>
-                : <>This browser doesn't support all features. Open in <strong>{browserName}</strong> for the best experience.</>
+              {env?.isInAppBrowser 
+                ? <>{env?.currentBrowser}'s browser doesn't support all features. Open in <strong>{browserName}</strong> for the best experience.</>
+                : <>{env?.currentBrowser} doesn't support all features. Open in <strong>{browserName}</strong> for the best experience.</>
               }
             </p>
 
             <div className="steps">
               {env?.isIOS ? (
-                <>
-                  <div className="step">
-                    <span className="step-num">1</span>
-                    <span>Tap the <strong>•••</strong> or <strong>Share</strong> button</span>
-                  </div>
-                  <div className="step">
-                    <span className="step-num">2</span>
-                    <span>Select <strong>"Open in Safari"</strong></span>
-                  </div>
-                </>
+                env?.isInAppBrowser ? (
+                  <>
+                    <div className="step">
+                      <span className="step-num">1</span>
+                      <span>Tap the <strong>•••</strong> or <strong>Share</strong> button</span>
+                    </div>
+                    <div className="step">
+                      <span className="step-num">2</span>
+                      <span>Select <strong>"Open in Safari"</strong></span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="step">
+                      <span className="step-num">1</span>
+                      <span>Copy the link below</span>
+                    </div>
+                    <div className="step">
+                      <span className="step-num">2</span>
+                      <span>Open <strong>Safari</strong> and paste the link</span>
+                    </div>
+                  </>
+                )
               ) : (
-                <>
-                  <div className="step">
-                    <span className="step-num">1</span>
-                    <span>Tap <strong>⋮</strong> in the top right corner</span>
-                  </div>
-                  <div className="step">
-                    <span className="step-num">2</span>
-                    <span>Select <strong>"Open in Chrome"</strong></span>
-                  </div>
-                </>
+                env?.isInAppBrowser ? (
+                  <>
+                    <div className="step">
+                      <span className="step-num">1</span>
+                      <span>Tap <strong>⋮</strong> in the top right corner</span>
+                    </div>
+                    <div className="step">
+                      <span className="step-num">2</span>
+                      <span>Select <strong>"Open in Chrome"</strong></span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="step">
+                      <span className="step-num">1</span>
+                      <span>Copy the link below</span>
+                    </div>
+                    <div className="step">
+                      <span className="step-num">2</span>
+                      <span>Open <strong>Chrome</strong> and paste the link</span>
+                    </div>
+                  </>
+                )
               )}
             </div>
 
             <div className="divider">
-              <span>or copy link</span>
+              <span>copy link</span>
             </div>
 
             <div className="link-row">
